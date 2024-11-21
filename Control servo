@@ -1,0 +1,86 @@
+#include <Servo.h>
+#include <NewPing.h>
+
+// Pin definitions
+#define TRIGGER_PIN  9
+#define ECHO_PIN     10
+#define SERVO_PIN    3
+
+// Constants
+#define CENTER_ANGLE 90
+#define SCAN_OFFSET  20    // How far to move left/right from center
+#define MOVE_DELAY   15    // Delay between servo movements (ms)
+#define MEASURE_DELAY 50   // Delay between measurements (ms)
+
+Servo myservo;
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, 400); // 400cm max distance
+
+enum ScanState {
+  TO_LEFT,       // Moving from center to left
+  TO_CENTER,     // Returning to center
+  TO_RIGHT,      // Moving from center to right
+  TO_CENTER_BACK // Returning to center from right
+};
+
+ScanState currentState = TO_LEFT;
+int currentAngle = CENTER_ANGLE;
+
+void setup() {
+  Serial.begin(9600);
+  myservo.attach(SERVO_PIN);
+  myservo.write(CENTER_ANGLE);  // Start at center position
+  delay(1000);  // Allow servo to reach position
+}
+
+void loop() {
+  // Update servo position based on current state
+  switch (currentState) {
+    case TO_LEFT:
+      if (currentAngle > CENTER_ANGLE - SCAN_OFFSET) {
+        currentAngle--;
+      } else {
+        currentState = TO_CENTER;  // After reaching left, go back to center
+      }
+      break;
+
+    case TO_CENTER:
+      if (currentAngle < CENTER_ANGLE) {
+        currentAngle++;
+      } else {
+        currentState = TO_RIGHT;  // After reaching center, go to right
+      }
+      break;
+
+    case TO_RIGHT:
+      if (currentAngle < CENTER_ANGLE + SCAN_OFFSET) {
+        currentAngle++;
+      } else {
+        currentState = TO_CENTER_BACK;  // After reaching right, go back to center
+      }
+      break;
+
+    case TO_CENTER_BACK:
+      if (currentAngle > CENTER_ANGLE) {
+        currentAngle--;
+      } else {
+        currentState = TO_LEFT;  // After returning to center, go to left again
+      }
+      break;
+  }
+
+  // Move servo to new position
+  myservo.write(currentAngle);
+  delay(MOVE_DELAY);  // Small delay for servo movement
+
+  // Take measurement and send data
+  int distance = sonar.ping_cm();
+
+  // Send data in expected format
+  Serial.print("Angle: ");
+  Serial.print(currentAngle);
+  Serial.print(", Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  delay(MEASURE_DELAY);  // Delay between measurements
+}
